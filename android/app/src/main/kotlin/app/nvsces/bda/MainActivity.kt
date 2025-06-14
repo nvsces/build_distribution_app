@@ -1,4 +1,4 @@
-package com.example.build_distribution_app
+package app.nvsces.bda
 
 import android.os.Build
 import android.os.Bundle

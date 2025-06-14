@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:build_distribution_app/bloc/download_bloc.dart';
 import 'package:build_distribution_app/data/file_manager.dart';
+import 'package:build_distribution_app/entity/folder_entity.dart';
 import 'package:build_distribution_app/list_apk_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,8 +19,8 @@ Future<Map<String, dynamic>> loadConfig() async {
 late Directory dir;
 late AutoRefreshingAuthClient client;
 late FileManager fileManager;
-late Map<String, dynamic> packages;
-late Map<String, dynamic> folders;
+
+late List<FolderEntity> folders;
 late ServiceAccountCredentials serviceAccountCredentials;
 
 void main() async {
@@ -28,8 +29,9 @@ void main() async {
   serviceAccountCredentials = ServiceAccountCredentials.fromJson(
     config['service_account'],
   );
-  packages = config['packages'];
-  folders = config['folders'];
+  folders = (config['folders'] as List)
+      .map((e) => FolderEntity.fromMap(e))
+      .toList();
   dir = await getApplicationDocumentsDirectory();
   final scopes = [DriveApi.driveReadonlyScope];
   client = await clientViaServiceAccount(serviceAccountCredentials, scopes);
@@ -84,7 +86,7 @@ class _ApkDownloadPageState extends State<ApkDownloadPage> {
             indicatorColor: Colors.indigo,
             labelStyle: TextStyle(fontWeight: FontWeight.w600),
             tabs: List.generate(folders.length, (i) {
-              final key = folders.keys.elementAt(i);
+              final key = folders[i].name;
               return Tab(text: key);
             }),
           ),
@@ -92,8 +94,12 @@ class _ApkDownloadPageState extends State<ApkDownloadPage> {
         body: DownloaderWrapper(
           child: TabBarView(
             children: List.generate(folders.length, (i) {
-              final key = folders.keys.elementAt(i);
-              return ListApkWidget(keyValue: key, key: ValueKey(i));
+              final key = folders[i].id;
+              return ListApkWidget(
+                keyValue: key,
+                key: ValueKey(i),
+                folder: folders[i],
+              );
             }),
           ),
         ),

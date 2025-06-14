@@ -1,3 +1,4 @@
+import 'package:build_distribution_app/entity/folder_entity.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
@@ -6,7 +7,12 @@ import 'package:build_distribution_app/apk_widget.dart';
 
 class ListApkWidget extends StatefulWidget {
   final String keyValue;
-  const ListApkWidget({super.key, required this.keyValue});
+  final FolderEntity folder;
+  const ListApkWidget({
+    super.key,
+    required this.keyValue,
+    required this.folder,
+  });
 
   @override
   State<ListApkWidget> createState() => _ListApkWidgetState();
@@ -26,10 +32,9 @@ class _ListApkWidgetState extends State<ListApkWidget>
   Future<void> listFilesInFolder() async {
     setState(() => isLoading = true);
     final driveApi = drive.DriveApi(client);
-    final folderId = folders[widget.keyValue];
 
     final fileList = await driveApi.files.list(
-      q: "'$folderId' in parents and trashed = false",
+      q: "'${widget.folder.id}' in parents and trashed = false",
       $fields: 'files(id, name, mimeType)',
     );
 
@@ -80,11 +85,11 @@ class _ListApkWidgetState extends State<ListApkWidget>
           else
             SliverList(
               delegate: SliverChildBuilderDelegate((context, i) {
-                final key = ValueKey('$i=${packages[widget.keyValue]}');
+                final key = ValueKey('$i=${widget.folder.package}');
                 return ApkWidget(
                   key: key,
                   file: files[i],
-                  packageName: packages[widget.keyValue] ?? '',
+                  packageName: widget.folder.package,
                 );
               }, childCount: files.length),
             ),

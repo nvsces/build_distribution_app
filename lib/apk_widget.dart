@@ -11,8 +11,6 @@ import 'package:installed_apps/app_info.dart';
 import 'package:installed_apps/installed_apps.dart';
 import 'package:open_file/open_file.dart';
 
-const apiKey = 'AIzaSyCawdEsGKARCuxOO1KbqOk5h2fUjPZd7y4';
-
 class ApkWidget extends StatefulWidget {
   final drive.File file;
   final String packageName;
@@ -172,8 +170,7 @@ class _ApkWidgetState extends State<ApkWidget> {
   Future<void> openInstallPermissionSettings() async {
     const intent = AndroidIntent(
       action: 'android.settings.MANAGE_UNKNOWN_APP_SOURCES',
-      data:
-          'package:com.example.build_distribution_app', // замени на свой packageName
+      data: 'package:app.nvsces.dba',
     );
     await intent.launch();
   }
