@@ -1,9 +1,14 @@
+import 'package:build_distribution_app/apk_version_provider.dart';
+import 'package:build_distribution_app/entity/build_item.dart';
 import 'package:build_distribution_app/entity/folder_entity.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:build_distribution_app/main.dart';
 import 'package:build_distribution_app/apk_widget.dart';
+
+const apkMimeType = "application/vnd.android.package-archive";
+const textMimeType = "text/plain";
 
 class ListApkWidget extends StatefulWidget {
   final String keyValue;
@@ -20,7 +25,7 @@ class ListApkWidget extends StatefulWidget {
 
 class _ListApkWidgetState extends State<ListApkWidget>
     with AutomaticKeepAliveClientMixin {
-  List<drive.File> files = <drive.File>[];
+  List<BuildItem> files = <BuildItem>[];
   bool isLoading = true;
 
   @override
@@ -38,8 +43,34 @@ class _ListApkWidgetState extends State<ListApkWidget>
       $fields: 'files(id, name, mimeType)',
     );
 
+    final allFiles = fileList.files ?? <drive.File>[];
+
+    // Разделим на apk и txt файлы
+    final apkFiles = <String, drive.File>{};
+    final txtFiles = <String, drive.File>{};
+
+    for (final file in allFiles) {
+      final name = file.name ?? '';
+      if (file.mimeType == apkMimeType && name.endsWith('.apk')) {
+        final baseName = name.replaceAll(RegExp(r'\.apk$'), '');
+        apkFiles[baseName] = file;
+      } else if (file.mimeType == textMimeType && name.endsWith('.txt')) {
+        final baseName = name.replaceAll(RegExp(r'\.txt$'), '');
+        txtFiles[baseName] = file;
+      }
+    }
+
+    final List<BuildItem> buildItems = [];
+
+    for (final entry in apkFiles.entries) {
+      final apkFile = entry.value;
+      final txtFile = txtFiles[entry.key];
+
+      buildItems.add(BuildItem(apkFile: apkFile, txtFile: txtFile));
+    }
+
     setState(() {
-      files = fileList.files ?? <drive.File>[];
+      files = buildItems;
       isLoading = false;
     });
   }
@@ -47,53 +78,55 @@ class _ListApkWidgetState extends State<ListApkWidget>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return SizedBox.expand(
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          // Заголовок с кнопкой обновления
-          SliverAppBar(
-            pinned: true,
-            floating: true,
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            elevation: 2,
-            title: const Text(
-              'Доступные APK',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Обновить список',
-                onPressed: listFilesInFolder,
+    return ApkVersionProvider(
+      package: widget.folder.package,
+      child: SizedBox.expand(
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              pinned: true,
+              floating: true,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              elevation: 2,
+              title: const Text(
+                'Доступные APK',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
               ),
-            ],
-          ),
-
-          CupertinoSliverRefreshControl(onRefresh: listFilesInFolder),
-
-          if (isLoading)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (files.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(child: Text('Нет доступных файлов')),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate((context, i) {
-                final key = ValueKey('$i=${widget.folder.package}');
-                return ApkWidget(
-                  key: key,
-                  file: files[i],
-                  packageName: widget.folder.package,
-                );
-              }, childCount: files.length),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Обновить список',
+                  onPressed: listFilesInFolder,
+                ),
+              ],
             ),
-        ],
+
+            CupertinoSliverRefreshControl(onRefresh: listFilesInFolder),
+
+            if (isLoading)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (files.isEmpty)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text('Нет доступных файлов')),
+              )
+            else
+              SliverList(
+                delegate: SliverChildBuilderDelegate((context, i) {
+                  final key = ValueKey('$i=${widget.folder.package}');
+                  return ApkWidget(
+                    key: key,
+                    item: files[i],
+                    packageName: widget.folder.package,
+                  );
+                }, childCount: files.length),
+              ),
+          ],
+        ),
       ),
     );
   }

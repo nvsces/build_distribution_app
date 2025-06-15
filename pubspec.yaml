@@ -24,6 +24,8 @@ dependencies:
   installed_apps: ^1.6.0
   flutter_bloc: ^9.1.1
   flutter_launcher_icons: ^0.14.4
+  shared_preferences: ^2.5.3
+
 
 dev_dependencies:
   flutter_test:
@@ -39,6 +41,8 @@ flutter:
   assets:
     - assets/config.json
     - assets/logo.png
+    - assets/log_f.png
+    - assets/ic_launcher.png
 
 flutter_launcher_icons:
   android: "launcher_icon"

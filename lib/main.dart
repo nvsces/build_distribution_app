@@ -10,6 +10,7 @@ import 'package:googleapis/drive/v3.dart';
 import 'package:googleapis_auth/auth_io.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<Map<String, dynamic>> loadConfig() async {
   final configString = await rootBundle.loadString('assets/config.json');
@@ -22,6 +23,7 @@ late FileManager fileManager;
 
 late List<FolderEntity> folders;
 late ServiceAccountCredentials serviceAccountCredentials;
+late SharedPreferences prefs;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,6 +35,7 @@ void main() async {
       .map((e) => FolderEntity.fromMap(e))
       .toList();
   dir = await getApplicationDocumentsDirectory();
+  prefs = await SharedPreferences.getInstance();
   final scopes = [DriveApi.driveReadonlyScope];
   client = await clientViaServiceAccount(serviceAccountCredentials, scopes);
   fileManager = FileManager();
@@ -64,44 +67,107 @@ class ApkDownloadPage extends StatefulWidget {
   const ApkDownloadPage({super.key});
 
   @override
-  _ApkDownloadPageState createState() => _ApkDownloadPageState();
+  State<ApkDownloadPage> createState() => _ApkDownloadPageState();
 }
 
 class _ApkDownloadPageState extends State<ApkDownloadPage> {
+  int selectedFolderIndex = 0;
+
   @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: folders.length,
-      child: Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        appBar: AppBar(
-          title: const Text(
-            'Загрузка и установка APK',
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          centerTitle: true,
-          elevation: 4,
-          shadowColor: Colors.black26,
-          bottom: TabBar(
-            indicatorColor: Colors.indigo,
-            labelStyle: TextStyle(fontWeight: FontWeight.w600),
-            tabs: List.generate(folders.length, (i) {
-              final key = folders[i].name;
-              return Tab(text: key);
-            }),
-          ),
-        ),
-        body: DownloaderWrapper(
-          child: TabBarView(
-            children: List.generate(folders.length, (i) {
-              final key = folders[i].id;
-              return ListApkWidget(
-                keyValue: key,
-                key: ValueKey(i),
-                folder: folders[i],
+  void initState() {
+    super.initState();
+  }
+
+  void _showEnvBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[400],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ...List.generate(folders.length, (i) {
+              final isSelected =
+                  folders[i].name == folders[selectedFolderIndex].name;
+              return ListTile(
+                leading: Icon(
+                  Icons.cloud_queue,
+                  color: isSelected ? Colors.blue : null,
+                ),
+                title: Text(
+                  folders[i].name,
+                  style: TextStyle(
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isSelected ? Colors.blue : null,
+                  ),
+                ),
+                trailing: isSelected
+                    ? const Icon(Icons.check, color: Colors.blue)
+                    : null,
+                onTap: () {
+                  setState(() {
+                    selectedFolderIndex = i;
+                  });
+                  Navigator.pop(context);
+                },
               );
             }),
+
+            const SizedBox(height: 16),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentFolder = folders[selectedFolderIndex];
+
+    return Scaffold(
+      appBar: AppBar(
+        leading: Image.asset('assets/log_f.png'),
+        title: const Text(
+          'Build Distribution',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        centerTitle: false,
+        actions: [
+          GestureDetector(
+            onTap: () => _showEnvBottomSheet(context),
+            child: Row(
+              children: [
+                const Icon(Icons.cloud_queue, size: 18),
+                const SizedBox(width: 4),
+                Text(
+                  folders[selectedFolderIndex].name,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
+                const Icon(Icons.arrow_drop_down),
+              ],
+            ),
           ),
+        ],
+      ),
+      body: DownloaderWrapper(
+        child: ListApkWidget(
+          keyValue: currentFolder.id,
+          key: ValueKey(currentFolder.id),
+          folder: currentFolder,
         ),
       ),
     );
@@ -127,28 +193,53 @@ class DownloaderWrapperState extends State<DownloaderWrapper> {
             if (showProgress)
               Container(
                 width: double.infinity,
-                margin: const EdgeInsets.all(12),
-                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.white.withOpacity(0.9),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.grey.shade300),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
-                      blurRadius: 6,
+                      blurRadius: 4,
                       offset: Offset(0, 2),
                     ),
                   ],
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(width: 16),
-                    Expanded(
+                    Text(
+                      state.fileName,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: state.prograess,
+                        minHeight: 6,
+                        backgroundColor: Colors.grey.shade200,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.blueAccent,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerRight,
                       child: Text(
-                        '${state.fileName} \n${state.prograess * 100}%',
-                        style: Theme.of(context).textTheme.bodyLarge,
-                        overflow: TextOverflow.ellipsis,
+                        '${(state.prograess * 100).toStringAsFixed(0)}%',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Colors.grey[600],
+                        ),
                       ),
                     ),
                   ],
